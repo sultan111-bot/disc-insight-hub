@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { DISCAnswer } from '@/data/discQuestions';
 import { calculateDISCScores, generateDISCReport, DISCReport } from '@/utils/discCalculator';
-import { ArrowLeft, Download, Share2 } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import html2pdf from 'html2pdf.js';
 
 const ResultPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [report, setReport] = useState<DISCReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const answers = location.state?.answers as DISCAnswer[] | undefined;
@@ -31,6 +34,31 @@ const ResultPage = () => {
       setLoading(false);
     }, 1500);
   }, [location, navigate]);
+
+  const handleDownload = async () => {
+    if (!reportRef.current || !report) return;
+    
+    setDownloading(true);
+    toast.info('Mempersiapkan file PDF...');
+
+    try {
+      const opt = {
+        margin: 10,
+        filename: `DISC-Test-Result-${report.type}-${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+      };
+
+      await html2pdf().set(opt).from(reportRef.current).save();
+      toast.success('Hasil test berhasil didownload!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Gagal mendownload hasil test');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -74,7 +102,7 @@ const ResultPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-light/10 via-background to-accent/5">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
+      <div className="container mx-auto px-4 py-8 max-w-5xl" ref={reportRef}>
         {/* Header */}
         <div className="mb-8 flex justify-between items-start print:hidden">
           <Button
@@ -90,9 +118,13 @@ const ResultPage = () => {
               <Share2 className="w-4 h-4" />
               Bagikan
             </Button>
-            <Button onClick={handlePrint} className="gap-2">
+            <Button variant="outline" onClick={handlePrint} className="gap-2">
+              <Printer className="w-4 h-4" />
+              Print
+            </Button>
+            <Button onClick={handleDownload} disabled={downloading} className="gap-2">
               <Download className="w-4 h-4" />
-              Download/Print
+              {downloading ? 'Downloading...' : 'Download PDF'}
             </Button>
           </div>
         </div>
